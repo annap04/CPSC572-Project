@@ -1,0 +1,74 @@
+import json
+import networkx as nx
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from collections import defaultdict
+
+from matplotlib import font_manager
+
+def extract_symptoms(string):
+    # Splitting on commas
+    split_comma_strings = [symptom.strip() for symptom in string.split(',')]
+
+    # Want to handle any "and" that separates symptoms.
+    # Ex. 'Headache and fever'
+    # Ex. 'Headache'
+    # Headache should count as a common symptom for both diseases
+    split_and_symptoms = []
+    for symp in split_comma_strings:
+        symp_part = [symptom.strip() for symptom in symp.split(' and ')]
+        split_and_symptoms.extend(symp_part)
+
+    symptoms = [s.strip('.,').lower() for s in split_and_symptoms]
+
+    return symptoms
+    
+
+def network(filename, output_filename):
+    try:
+        # read data from input file
+        with open(filename, 'r', encoding = 'utf-8') as f:
+            data = json.load(f)
+        G = nx.Graph()
+
+        # add nodes and edges
+        for entry in data:
+            disease = entry.get("disease", "").strip()
+            symptoms = extract_symptoms(entry.get("common_symptom",''))
+
+            if not disease:
+                continue
+
+            G.add_node(disease, type = 'disease')
+
+            for symptom in symptoms:
+                G.add_node(symptom, type = 'symptom')
+                G.add_edge(disease, symptom)
+
+        nx.write_graphml(G, output_filename)
+
+        return G
+    except Exception as e:
+        print(f"An error occured: {e}")
+        return None
+
+def visualize_network(G):
+    plt.figure(figsize=(10,8))
+    pos = nx.spring_layout(G)
+
+    disease_nodes = [node for node, attr in G.nodes(data=True) if attr.get('type') == 'disease']
+    symptom_nodes = [node for node, attr in G.nodes(data=True) if attr.get('type') == 'symptom']
+
+    nx.draw_networkx_nodes(G, pos, nodelist=disease_nodes, node_color='blue', node_size=800, label='Diseases')
+    nx.draw_networkx_nodes(G, pos, nodelist=symptom_nodes, node_color='red', node_size=600, label='Symptoms')
+    nx.draw_networkx_edges(G, pos, alpha=0.5)
+    nx.draw_networkx_labels(G, pos, font_size=10)
+
+    plt.scatter([], [], color='blue', label='Diseases', s=100)
+    plt.scatter([], [], color='red', label='Symptoms', s=100)
+    plt.legend()
+ 
+    plt.title("Disease-Symptom Network")
+    plt.show()
+
+network('new_dataset.json', 'network_graph.graphml')
